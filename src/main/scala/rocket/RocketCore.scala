@@ -5,6 +5,7 @@ package freechips.rocketchip.rocket
 
 import Chisel._
 import Chisel.ImplicitConversions._
+import chisel3.VecInit
 import chisel3.withClock
 import chisel3.experimental.{chiselName, NoChiselNamePrefix}
 import freechips.rocketchip.config.Parameters
@@ -894,6 +895,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.inst := csr.io.trace(0).insn
   coreMonitorBundle.excpt := csr.io.trace(0).exception
   coreMonitorBundle.priv_mode := csr.io.trace(0).priv
+
+  val instructionCounters = Module(new InstructionCounters(decode_table))
+  instructionCounters.io.inst := csr.io.trace(0).insn
+  instructionCounters.io.valid := csr.io.trace(0).valid
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)
