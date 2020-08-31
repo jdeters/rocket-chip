@@ -91,6 +91,11 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
 
+  override def instructionCountersCSR = {
+    val mask = BigInt(0)
+    Some(CustomCSR(instructionCountersCSRId, mask, Some(mask)))
+  }
+
   def disableICachePrefetch = getOrElse(chickenCSR, _.value(17), true.B)
 
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
@@ -899,6 +904,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val instructionCounters = Module(new InstructionCounters(decode_table))
   instructionCounters.io.inst := csr.io.trace(0).insn
   instructionCounters.io.valid := csr.io.trace(0).valid
+  when(io.ptw.customCSRs.flushInstructionCounters) {
+    printf("Instruction counts reset\n")
+    instructionCounters.reset := true.B
+  }
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)

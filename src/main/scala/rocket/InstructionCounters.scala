@@ -14,7 +14,6 @@ class InstructionCountersIO (implicit p: Parameters) extends CoreBundle {
 class InstructionCounters(decode_table: Seq[(BitPat, List[BitPat])]) (implicit p: Parameters) extends CoreModule {
 
   val io = IO(new InstructionCountersIO)
-  val prev_inst = RegNext(io.inst)
 
   //create a new set of resetable registers that always go back to 0
   val counters = RegInit(VecInit(Seq.fill(decode_table.size+1)(0.U(32.W))))
