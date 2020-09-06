@@ -136,7 +136,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
   Annotated.params(this, outer.rocketParams)
 
   val core = Module(new Rocket(outer)(outer.p) {
-    //create a new piecd of hardware
+    //create a new piece of hardware
     val instructionCounters = Module(new InstructionCounters(rocketImpl.decode_table))
     //wire up all the signals we need
     instructionCounters.io.inst := io.trace(0).insn
