@@ -27,11 +27,8 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   protected def chickenCSRId = 0x7c1
   protected def chickenCSR: Option[CustomCSR] = None
 
-  protected def instructionCountersCSRId = 0x800
-  protected def instructionCountersCSR: Option[CustomCSR] = None
-
   // If you override this, you'll want to concatenate super.decls
-  def decls: Seq[CustomCSR] = bpmCSR.toSeq ++ chickenCSR ++ instructionCountersCSR
+  def decls: Seq[CustomCSR] = bpmCSR.toSeq ++ chickenCSR
 
   val csrs = Vec(decls.size, new CustomCSRIO)
 
@@ -42,7 +39,6 @@ class CustomCSRs(implicit p: Parameters) extends CoreBundle {
   def disableCoreClockGate = getOrElse(chickenCSR, _.value(2), false.B)
   def disableSpeculativeICacheRefill = getOrElse(chickenCSR, _.value(3), false.B)
   def suppressCorruptOnGrantData = getOrElse(chickenCSR, _.value(9), false.B)
-  def flushInstructionCounters = getOrElse(instructionCountersCSR, _.wen, false.B)
 
   protected def getByIdOrElse[T](id: Int, f: CustomCSRIO => T, alt: T): T = {
     val idx = decls.indexWhere(_.id == id)

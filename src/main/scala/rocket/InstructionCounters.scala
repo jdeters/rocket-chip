@@ -20,7 +20,6 @@ class InstructionCounters(decode_table: Seq[(BitPat, List[BitPat])]) (implicit p
 
   //construct a new list that maps the instructions to a counter
   val instMap = for (i <- 0 until decode_table.size) yield {
-    //doing this to avoid using util.Lookup which is likely to be deprecated
     decode_table(i)._1 -> i.U(32.W);
   }
 

@@ -303,9 +303,11 @@ class CSRFile(
   customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
-  val io = new CSRFileIO {
+  lazy val io = new CSRFileIO {
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
   }
+
+  implicit val csr = this
 
   val reset_mstatus = Wire(init=new MStatus().fromBits(0))
   reset_mstatus.mpp := PRV.M
@@ -613,39 +615,6 @@ class CSRFile(
   val insn_call :: insn_break :: insn_ret :: insn_cease :: insn_wfi :: insn_sfence :: Nil =
     DecodeLogic(io.rw.addr << 20, decode_table(0)._2.map(x=>X), decode_table).map(system_insn && _.asBool)
 
-  for (io_dec <- io.decode) {
-    def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
-    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(io_dec.csr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
-
-    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
-      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
-
-    val allow_wfi = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
-    val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
-    val allow_sret = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
-    val counter_addr = io_dec.csr(log2Ceil(read_mcounteren.getWidth)-1, 0)
-    val allow_counter = (reg_mstatus.prv > PRV.S || read_mcounteren(counter_addr)) &&
-      (!usingSupervisor || reg_mstatus.prv >= PRV.S || read_scounteren(counter_addr))
-    io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
-    io_dec.vector_illegal := io.status.vs === 0 || !reg_misa('v'-'a')
-    io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
-    io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
-    io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
-      !decodeAny(read_mapping) ||
-      io_dec.csr === CSRs.satp && !allow_sfence_vma ||
-      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
-      decodeFast(debug_csrs.keys.toList) && !reg_debug ||
-      decodeFast(vector_csrs.keys.toList) && io_dec.vector_illegal ||
-      io_dec.fp_csr && io_dec.fp_illegal
-    io_dec.write_illegal := io_dec.csr(11,10).andR
-    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
-    io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
-      is_wfi && !allow_wfi ||
-      is_ret && !allow_sret ||
-      is_ret && io_dec.csr(10) && !reg_debug ||
-      is_sfence && !allow_sfence_vma
-  }
-
   val cause =
     Mux(insn_call, reg_mstatus.prv + Causes.user_ecall,
     Mux[UInt](insn_break, Causes.breakpoint, io.cause))
@@ -821,6 +790,9 @@ class CSRFile(
 
   val csr_wen = io.rw.cmd.isOneOf(CSR.S, CSR.C, CSR.W)
   io.csrw_counter := Mux(coreParams.haveBasicCounters && csr_wen && (io.rw.addr.inRange(CSRs.mcycle, CSRs.mcycle + CSR.nCtr) || io.rw.addr.inRange(CSRs.mcycleh, CSRs.mcycleh + CSR.nCtr)), UIntToOH(io.rw.addr(log2Ceil(CSR.nCtr+nPerfCounters)-1, 0)), 0.U)
+
+  //create a new register
+
   when (csr_wen) {
     when (decoded_addr(CSRs.mstatus)) {
       val new_mstatus = new MStatus().fromBits(wdata)
@@ -979,6 +951,7 @@ class CSRFile(
         }
       }
     }
+
     reg_mcontext.foreach { r => when (decoded_addr(CSRs.mcontext)) { r := wdata }}
     reg_scontext.foreach { r => when (decoded_addr(CSRs.scontext)) { r := wdata }}
     if (reg_pmp.nonEmpty) for (((pmp, next), i) <- (reg_pmp zip (reg_pmp.tail :+ reg_pmp.last)) zipWithIndex) {
@@ -996,6 +969,7 @@ class CSRFile(
         pmp.addr := wdata
       }
     }
+
     for ((io, csr, reg) <- (io.customCSRs, customCSRs, reg_custom).zipped) {
       val mask = csr.mask.U(xLen.W)
       when (decoded_addr(csr.id)) {
@@ -1081,6 +1055,46 @@ class CSRFile(
     t.cause := cause
     t.interrupt := cause(xLen-1)
     t.tval := io.tval
+  }
+
+  generateCustomCSRs //this function will generate any custom csrs if overridden
+
+  //this needs to come last as any custom CSRs will need to be added before this point
+  for (io_dec <- io.decode) {
+    def decodeAny(m: LinkedHashMap[Int,Bits]): Bool = m.map { case(k: Int, _: Bits) => io_dec.csr === k }.reduce(_||_)
+    def decodeFast(s: Seq[Int]): Bool = DecodeLogic(io_dec.csr, s.map(_.U), (read_mapping -- s).keys.toList.map(_.U))
+
+    val _ :: is_break :: is_ret :: _ :: is_wfi :: is_sfence :: Nil =
+      DecodeLogic(io_dec.csr << 20, decode_table(0)._2.map(x=>X), decode_table).map(_.asBool)
+
+    val allow_wfi = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !reg_mstatus.tw
+    val allow_sfence_vma = Bool(!usingVM) || reg_mstatus.prv > PRV.S || !reg_mstatus.tvm
+    val allow_sret = Bool(!usingSupervisor) || reg_mstatus.prv > PRV.S || !reg_mstatus.tsr
+    val counter_addr = io_dec.csr(log2Ceil(read_mcounteren.getWidth)-1, 0)
+    val allow_counter = (reg_mstatus.prv > PRV.S || read_mcounteren(counter_addr)) &&
+      (!usingSupervisor || reg_mstatus.prv >= PRV.S || read_scounteren(counter_addr))
+    io_dec.fp_illegal := io.status.fs === 0 || !reg_misa('f'-'a')
+    io_dec.vector_illegal := io.status.vs === 0 || !reg_misa('v'-'a')
+    io_dec.fp_csr := decodeFast(fp_csrs.keys.toList)
+    io_dec.rocc_illegal := io.status.xs === 0 || !reg_misa('x'-'a')
+    io_dec.read_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
+      !decodeAny(read_mapping) ||
+      io_dec.csr === CSRs.satp && !allow_sfence_vma ||
+      (io_dec.csr.inRange(CSR.firstCtr, CSR.firstCtr + CSR.nCtr) || io_dec.csr.inRange(CSR.firstCtrH, CSR.firstCtrH + CSR.nCtr)) && !allow_counter ||
+      decodeFast(debug_csrs.keys.toList) && !reg_debug ||
+      decodeFast(vector_csrs.keys.toList) && io_dec.vector_illegal ||
+      io_dec.fp_csr && io_dec.fp_illegal
+    io_dec.write_illegal := io_dec.csr(11,10).andR
+    io_dec.write_flush := !(io_dec.csr >= CSRs.mscratch && io_dec.csr <= CSRs.mtval || io_dec.csr >= CSRs.sscratch && io_dec.csr <= CSRs.stval)
+    io_dec.system_illegal := reg_mstatus.prv < io_dec.csr(9,8) ||
+      is_wfi && !allow_wfi ||
+      is_ret && !allow_sret ||
+      is_ret && io_dec.csr(10) && !reg_debug ||
+      is_sfence && !allow_sfence_vma
+  }
+
+  def generateCustomCSRs: Unit = {
+    //do nothing
   }
 
   def chooseInterrupt(masksIn: Seq[UInt]): (Bool, UInt) = {

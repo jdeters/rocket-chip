@@ -91,11 +91,6 @@ class RocketCustomCSRs(implicit p: Parameters) extends CustomCSRs with HasRocket
     Some(CustomCSR(chickenCSRId, mask, Some(mask)))
   }
 
-  override def instructionCountersCSR = {
-    val mask = BigInt(0)
-    Some(CustomCSR(instructionCountersCSRId, mask, Some(mask)))
-  }
-
   def disableICachePrefetch = getOrElse(chickenCSR, _.value(17), true.B)
 
   def marchid = CustomCSR.constant(CSRs.marchid, BigInt(1))
@@ -281,7 +276,25 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls))
+  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls) {
+    override lazy val io = new CSRFileIO {
+      val customCSRs = Vec(coreParams.customCSRs.decls.size, new CustomCSRIO).asOutput
+      val flushInstructionCounters = Output(Bool())
+      flushInstructionCounters := false.B
+    }
+
+    override def generateCustomCSRs {
+      val reg_flushInstructionCounters = new CSreg(0x800, Reg(UInt(xLen.W))) ((reg: Data) => {
+        //kind of magic, but we don't need super
+        when(csr_wen) {
+          printf("Flushing instruction counters\n")
+          reg := wdata
+          io.flushInstructionCounters := true.B
+        }
+      })
+    }
+  })
+
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)
   val id_system_insn = id_ctrl.csr === CSR.I
   val id_csr_ren = id_ctrl.csr.isOneOf(CSR.S, CSR.C) && id_raddr1 === UInt(0)
@@ -900,14 +913,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   coreMonitorBundle.inst := csr.io.trace(0).insn
   coreMonitorBundle.excpt := csr.io.trace(0).exception
   coreMonitorBundle.priv_mode := csr.io.trace(0).priv
-
-  val instructionCounters = Module(new InstructionCounters(decode_table))
-  instructionCounters.io.inst := csr.io.trace(0).insn
-  instructionCounters.io.valid := csr.io.trace(0).valid
-  when(io.ptw.customCSRs.flushInstructionCounters) {
-    printf("Instruction counts reset\n")
-    instructionCounters.reset := true.B
-  }
 
   if (enableCommitLog) {
     val t = csr.io.trace(0)
