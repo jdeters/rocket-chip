@@ -120,7 +120,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   @chiselName class RocketImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
   // performance counters
-  def pipelineIDToWB[T <: Data](x: T): T =
+  /**def pipelineIDToWB[T <: Data](x: T): T =
     RegEnable(RegEnable(RegEnable(x, !ctrl_killd), ex_pc_valid), mem_pc_valid)
   val perfEvents = new EventSets(Seq(
     new EventSet((mask, hits) => Mux(wb_xcpt, mask(0), wb_valid && pipelineIDToWB((mask & hits).orR)), Seq(
@@ -164,7 +164,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       ("D$ release", () => io.dmem.perf.release),
       ("ITLB miss", () => io.imem.perf.tlbMiss),
       ("DTLB miss", () => io.dmem.perf.tlbMiss),
-      ("L2 TLB miss", () => io.ptw.perf.l2miss)))))
+      ("L2 TLB miss", () => io.ptw.perf.l2miss)))))*/
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
@@ -276,7 +276,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val ctrl_killd = Wire(Bool())
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
-  val csr = Module(new CSRFile(perfEvents, coreParams.customCSRs.decls) {
+  val csr = Module(new CSRFile(customCSRs = coreParams.customCSRs.decls) {
     override lazy val io = new CSRFileIO {
       val customCSRs = Vec(coreParams.customCSRs.decls.size, new CustomCSRIO).asOutput
       val flushInstructionCounters = Output(Bool())
@@ -892,7 +892,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   // evaluate performance counters
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
-  csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
+  //csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 

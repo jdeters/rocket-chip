@@ -34,8 +34,8 @@ class EventSets(val eventSets: Seq[EventSet]) {
   }
 
   private def decode(counter: UInt): (UInt, UInt) = {
-    require(eventSets.size <= (1 << maxEventSetIdBits))
-    require(eventSetIdBits > 0)
+    //require(eventSets.size <= (1 << maxEventSetIdBits))
+    //require(eventSetIdBits > 0)
     (counter(eventSetIdBits-1, 0), counter >> maxEventSetIdBits)
   }
 
@@ -53,7 +53,7 @@ class EventSets(val eventSets: Seq[EventSet]) {
   private def eventSetIdBits = log2Ceil(eventSets.size)
   private def maxEventSetIdBits = 8
 
-  require(eventSetIdBits <= maxEventSetIdBits)
+  //require(eventSetIdBits <= maxEventSetIdBits)
 }
 
 class SuperscalarEventSets(val eventSets: Seq[(Seq[EventSet], (UInt, UInt) => UInt)]) {
@@ -61,7 +61,7 @@ class SuperscalarEventSets(val eventSets: Seq[(Seq[EventSet], (UInt, UInt) => UI
     val (set, mask) = decode(eventSel)
     val sets = for ((sets, reducer) <- eventSets) yield {
       sets.map { set =>
-        require(set.hits.getWidth <= mask.getWidth, s"too many events ${set.hits.getWidth} wider than mask ${mask.getWidth}")
+        //require(set.hits.getWidth <= mask.getWidth, s"too many events ${set.hits.getWidth} wider than mask ${mask.getWidth}")
         set.check(mask)
       }.reduce(reducer)
     }
@@ -74,14 +74,14 @@ class SuperscalarEventSets(val eventSets: Seq[(Seq[EventSet], (UInt, UInt) => UI
   def cover() { eventSets.foreach(_._1.foreach(_.withCovers)) }
 
   private def decode(counter: UInt): (UInt, UInt) = {
-    require(eventSets.size <= (1 << maxEventSetIdBits))
-    require(eventSetIdBits > 0)
+    //require(eventSets.size <= (1 << maxEventSetIdBits))
+    //require(eventSetIdBits > 0)
     (counter(eventSetIdBits-1, 0), counter >> maxEventSetIdBits)
   }
 
   private def eventSetIdBits = log2Ceil(eventSets.size)
   private def maxEventSetIdBits = 8
 
-  require(eventSets.forall(s => s._1.forall(_.size == s._1.head.size)))
-  require(eventSetIdBits <= maxEventSetIdBits)
+  //require(eventSets.forall(s => s._1.forall(_.size == s._1.head.size)))
+  //require(eventSetIdBits <= maxEventSetIdBits)
 }
