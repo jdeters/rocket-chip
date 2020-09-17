@@ -145,6 +145,8 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     when(rocketImpl.csr.io.flushInstructionCounters) {
       instructionCounters.reset := true.B
     }
+
+    EventFactory.connectEvents(rocketImpl.csr)
   })
 
   val traceValidEnable = Wire(Bool())

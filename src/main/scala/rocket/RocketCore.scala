@@ -119,52 +119,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   @chiselName class RocketImpl extends NoChiselNamePrefix { // entering gated-clock domain
 
-  // performance counters
-  /**def pipelineIDToWB[T <: Data](x: T): T =
-    RegEnable(RegEnable(RegEnable(x, !ctrl_killd), ex_pc_valid), mem_pc_valid)
-  val perfEvents = new EventSets(Seq(
-    new EventSet((mask, hits) => Mux(wb_xcpt, mask(0), wb_valid && pipelineIDToWB((mask & hits).orR)), Seq(
-      ("exception", () => false.B),
-      ("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp),
-      ("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp),
-      ("amo", () => Bool(usingAtomics) && id_ctrl.mem && (isAMO(id_ctrl.mem_cmd) || id_ctrl.mem_cmd.isOneOf(M_XLR, M_XSC))),
-      ("system", () => id_ctrl.csr =/= CSR.N),
-      ("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.mul || id_ctrl.div || id_ctrl.csr =/= CSR.N)),
-      ("branch", () => id_ctrl.branch),
-      ("jal", () => id_ctrl.jal),
-      ("jalr", () => id_ctrl.jalr))
-      ++ (if (!usingMulDiv) Seq() else Seq(
-        ("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV),
-        ("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV)))
-      ++ (if (!usingFPU) Seq() else Seq(
-        ("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen),
-        ("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen),
-        ("fp add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.swap23),
-        ("fp mul", () => id_ctrl.fp && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3),
-        ("fp mul-add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.ren3),
-        ("fp div/sqrt", () => id_ctrl.fp && (io.fpu.dec.div || io.fpu.dec.sqrt)),
-        ("fp other", () => id_ctrl.fp && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt))))),
-    new EventSet((mask, hits) => (mask & hits).orR, Seq(
-      ("load-use interlock", () => id_ex_hazard && ex_ctrl.mem || id_mem_hazard && mem_ctrl.mem || id_wb_hazard && wb_ctrl.mem),
-      ("long-latency interlock", () => id_sboard_hazard),
-      ("csr interlock", () => id_ex_hazard && ex_ctrl.csr =/= CSR.N || id_mem_hazard && mem_ctrl.csr =/= CSR.N || id_wb_hazard && wb_ctrl.csr =/= CSR.N),
-      ("I$ blocked", () => icache_blocked),
-      ("D$ blocked", () => id_ctrl.mem && dcache_blocked),
-      ("branch misprediction", () => take_pc_mem && mem_direction_misprediction),
-      ("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !icache_blocked),
-      ("flush", () => wb_reg_flush_pipe),
-      ("replay", () => replay_wb))
-      ++ (if (!usingMulDiv) Seq() else Seq(
-        ("mul/div interlock", () => id_ex_hazard && (ex_ctrl.mul || ex_ctrl.div) || id_mem_hazard && (mem_ctrl.mul || mem_ctrl.div) || id_wb_hazard && wb_ctrl.div)))
-      ++ (if (!usingFPU) Seq() else Seq(
-        ("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu)))),
-    new EventSet((mask, hits) => (mask & hits).orR, Seq(
-      ("I$ miss", () => io.imem.perf.acquire),
-      ("D$ miss", () => io.dmem.perf.acquire),
-      ("D$ release", () => io.dmem.perf.release),
-      ("ITLB miss", () => io.imem.perf.tlbMiss),
-      ("DTLB miss", () => io.dmem.perf.tlbMiss),
-      ("L2 TLB miss", () => io.ptw.perf.l2miss)))))*/
 
   val pipelinedMul = usingMulDiv && mulDivParams.mulUnroll == xLen
   val decode_table = {
@@ -277,12 +231,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   val id_npc = (ibuf.io.pc.asSInt + ImmGen(IMM_UJ, id_inst(0))).asUInt
 
   val csr = Module(new CSRFile(customCSRs = coreParams.customCSRs.decls) {
-    override lazy val io = new CSRFileIO {
-      val customCSRs = Vec(coreParams.customCSRs.decls.size, new CustomCSRIO).asOutput
-      val flushInstructionCounters = Output(Bool())
-      flushInstructionCounters := false.B
-    }
-
     override def generateCustomCSRs {
       val reg_flushInstructionCounters = new CSreg(0x800, Reg(UInt(xLen.W))) ((reg: Data) => {
         //kind of magic, but we don't need super
@@ -292,6 +240,14 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
           io.flushInstructionCounters := true.B
         }
       })
+    }
+
+    for(incomingEvent <- io.incomingEvents){
+      for((configuredEvent, register) <- reg_hpmevent zip reg_hpmcounter) {
+        when(configuredEvent === incomingEvent) {
+          register := register + 1.U
+        }
+      }
     }
   })
 
@@ -893,6 +849,46 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   // evaluate performance counters
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
   //csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
+
+  EventFactory("exception", () => false.B, 0x0)
+  EventFactory("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp, 0x1)
+  EventFactory("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp, 0x2)
+  EventFactory("amo", () => Bool(usingAtomics) && id_ctrl.mem && (isAMO(id_ctrl.mem_cmd) || id_ctrl.mem_cmd.isOneOf(M_XLR, M_XSC)), 0x3)
+  EventFactory("system", () => id_ctrl.csr =/= CSR.N, 0x4)
+  EventFactory("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.mul || id_ctrl.div || id_ctrl.csr =/= CSR.N), 0x5)
+  EventFactory("branch", () => id_ctrl.branch, 0x6)
+  EventFactory("jal", () => id_ctrl.jal, 0x7)
+  EventFactory("jalr", () => id_ctrl.jalr, 0x8)
+  EventFactory("load-use interlock", () => id_ex_hazard && ex_ctrl.mem || id_mem_hazard && mem_ctrl.mem || id_wb_hazard && wb_ctrl.mem, 0x9)
+  EventFactory("long-latency interlock", () => id_sboard_hazard, 0xa)
+  EventFactory("csr interlock", () => id_ex_hazard && ex_ctrl.csr =/= CSR.N || id_mem_hazard && mem_ctrl.csr =/= CSR.N || id_wb_hazard && wb_ctrl.csr =/= CSR.N, 0xb)
+  EventFactory("I$ blocked", () => icache_blocked, 0xc)
+  EventFactory("D$ blocked", () => id_ctrl.mem && dcache_blocked, 0xd)
+  EventFactory("branch misprediction", () => take_pc_mem && mem_direction_misprediction, 0xe)
+  EventFactory("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !icache_blocked, 0xf)
+  EventFactory("flush", () => wb_reg_flush_pipe, 0x10)
+  EventFactory("replay", () => replay_wb, 0x11)
+  EventFactory("I$ miss", () => io.imem.perf.acquire, 0x12)
+  EventFactory("D$ miss", () => io.dmem.perf.acquire, 0x13)
+  EventFactory("D$ release", () => io.dmem.perf.release, 0x14)
+  EventFactory("ITLB miss", () => io.imem.perf.tlbMiss, 0x15)
+  EventFactory("DTLB miss", () => io.dmem.perf.tlbMiss, 0x16)
+  EventFactory("L2 TLB miss", () => io.ptw.perf.l2miss, 0x17)
+  if (usingMulDiv) {
+    EventFactory("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV, 0x18)
+    EventFactory("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV, 0x19)
+    EventFactory("mul/div interlock", () => id_ex_hazard && (ex_ctrl.mul || ex_ctrl.div) || id_mem_hazard && (mem_ctrl.mul || mem_ctrl.div) || id_wb_hazard && wb_ctrl.div, 0x1a)
+  }
+  if (usingFPU) {
+    EventFactory("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen, 0x1b)
+    EventFactory("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen, 0x1c)
+    EventFactory("fp add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.swap23, 0x1d)
+    EventFactory("fp mul", () => id_ctrl.fp && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3, 0x1e)
+    EventFactory("fp mul-add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.ren3, 0x1f)
+    EventFactory("fp div/sqrt", () => id_ctrl.fp && (io.fpu.dec.div || io.fpu.dec.sqrt), 0x20)
+    EventFactory("fp other", () => id_ctrl.fp && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt), 0x21)
+    EventFactory("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu, 0x22)
+  }
 
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 

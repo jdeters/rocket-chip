@@ -6,6 +6,7 @@ package freechips.rocketchip.rocket
 import Chisel._
 import Chisel.ImplicitConversions._
 import chisel3.withClock
+import chisel3.VecInit
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
@@ -155,12 +156,6 @@ object CSR
   val maxPMPs = 16
 }
 
-/**class PerfCounterIO(implicit p: Parameters) extends CoreBundle
-    with HasCoreParameters {
-  val eventSel = UInt(OUTPUT, xLen)
-  val inc = UInt(INPUT, log2Ceil(1+retireWidth))
-}*/
-
 class TracedInstruction(implicit p: Parameters) extends CoreBundle {
   val valid = Bool()
   val iaddr = UInt(width = coreMaxAddrBits)
@@ -224,7 +219,6 @@ class CSRFileIO(implicit p: Parameters) extends CoreBundle
   val interrupt_cause = UInt(OUTPUT, xLen)
   val bp = Vec(nBreakpoints, new BP).asOutput
   val pmp = Vec(nPMPs, new PMP).asOutput
-  //val counters = Vec(nPerfCounters, new PerfCounterIO)
   val csrw_counter = UInt(OUTPUT, CSR.nCtr)
   val inst = Vec(retireWidth, UInt(width = iLen)).asInput
   val trace = Vec(retireWidth, new TracedInstruction).asOutput
@@ -299,12 +293,14 @@ class VType(implicit p: Parameters) extends CoreBundle {
 }
 
 class CSRFile(
-  perfEventSets: EventSets = new EventSets(Seq()),
   customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
-  lazy val io = new CSRFileIO {
+  val io = new CSRFileIO {
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
+    val flushInstructionCounters = Output(Bool())
+    flushInstructionCounters := false.B
+    val incomingEvents = Input(Vec(40, UInt(xLen.W)))
   }
 
   implicit val csr = this
@@ -421,9 +417,11 @@ class CSRFile(
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
-  //val reg_hpmevent = io.counters.map(c => Reg(init = UInt(0, xLen)))
-  //(io.counters zip reg_hpmevent) foreach { case (c, e) => c.eventSel := e }
-  //val reg_hpmcounter = io.counters.map(c => WideCounter(CSR.hpmWidth, c.inc, reset = false))
+  val reg_hpmevent = RegInit(VecInit(Seq.fill(CSR.nHPM)(0.U(xLen))))
+  val reg_hpmcounter = RegInit(VecInit(Seq.fill(CSR.nHPM)(0.U(CSR.hpmWidth))))
+
+  println(reg_hpmevent.size)
+  println(reg_hpmcounter.size)
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
@@ -518,7 +516,7 @@ class CSRFile(
     read_mapping += CSRs.mcycle -> reg_cycle
     read_mapping += CSRs.minstret -> reg_instret
 
-    /**for (((e, c), i) <- (reg_hpmevent.padTo(CSR.nHPM, UInt(0))
+    for (((e, c), i) <- (reg_hpmevent.padTo(CSR.nHPM, UInt(0))
                          zip reg_hpmcounter.map(x => x: UInt).padTo(CSR.nHPM, UInt(0))) zipWithIndex) {
       read_mapping += (i + CSR.firstHPE) -> e // mhpmeventN
       read_mapping += (i + CSR.firstMHPC) -> c // mhpmcounterN
@@ -527,7 +525,7 @@ class CSRFile(
         read_mapping += (i + CSR.firstMHPCH) -> (c >> 32) // mhpmcounterNh
         if (usingUser) read_mapping += (i + CSR.firstHPCH) -> (c >> 32) // hpmcounterNh
       }
-    }*/
+    }
 
     if (usingUser) {
       read_mapping += CSRs.mcounteren -> read_mcounteren
@@ -846,10 +844,6 @@ class CSRFile(
     when (decoded_addr(CSRs.mcause))   { reg_mcause := wdata & UInt((BigInt(1) << (xLen-1)) + (BigInt(1) << whichInterrupt.getWidth) - 1) }
     when (decoded_addr(CSRs.mtval))    { reg_mtval := wdata(vaddrBitsExtended-1,0) }
 
-    /**for (((e, c), i) <- (reg_hpmevent zip reg_hpmcounter) zipWithIndex) {
-      writeCounter(i + CSR.firstMHPC, c, wdata)
-      when (decoded_addr(i + CSR.firstHPE)) { e := perfEventSets.maskEventSelector(wdata) }
-    }*/
     if (coreParams.haveBasicCounters) {
       writeCounter(CSRs.mcycle, reg_cycle, wdata)
       writeCounter(CSRs.minstret, reg_instret, wdata)
