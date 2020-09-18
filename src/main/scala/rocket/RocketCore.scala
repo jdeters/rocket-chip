@@ -242,6 +242,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       })
     }
 
+    //create the logic to check incoming event signals
     for(incomingEvent <- io.incomingEvents){
       for((configuredEvent, register) <- reg_hpmevent zip reg_hpmcounter) {
         when(configuredEvent === incomingEvent) {
@@ -848,7 +849,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
 
   // evaluate performance counters
   val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
-  //csr.io.counters foreach { c => c.inc := RegNext(perfEvents.evaluate(c.eventSel)) }
 
   EventFactory("exception", () => false.B, 0x0)
   EventFactory("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp, 0x1)
@@ -868,7 +868,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   EventFactory("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !icache_blocked, 0xf)
   EventFactory("flush", () => wb_reg_flush_pipe, 0x10)
   EventFactory("replay", () => replay_wb, 0x11)
-  EventFactory("I$ miss", () => io.imem.perf.acquire, 0x12)
+  //EventFactory("I$ miss", () => io.imem.perf.acquire, 0x12)
   EventFactory("D$ miss", () => io.dmem.perf.acquire, 0x13)
   EventFactory("D$ release", () => io.dmem.perf.release, 0x14)
   EventFactory("ITLB miss", () => io.imem.perf.tlbMiss, 0x15)

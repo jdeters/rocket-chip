@@ -56,7 +56,9 @@ class ICacheErrors(implicit p: Parameters) extends CoreBundle()(p)
 }
 
 class ICache(val icacheParams: ICacheParams, val staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends LazyModule {
-  lazy val module = new ICacheModule(this)
+  lazy val module = new ICacheModule(this) {
+    EventFactory("I$ miss", () => refill_fire, 0x12)
+  }
   val hartIdSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   val mmioAddressPrefixSinkNodeOpt = icacheParams.itimAddr.map(_ => BundleBridgeSink[UInt]())
   val useVM = p(TileKey).core.useVM
