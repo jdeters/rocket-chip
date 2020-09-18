@@ -242,14 +242,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
       })
     }
 
-    //create the logic to check incoming event signals
-    for(incomingEvent <- io.incomingEvents){
-      for((configuredEvent, register) <- reg_hpmevent zip reg_hpmcounter) {
-        when(configuredEvent === incomingEvent) {
-          register := register + 1.U
-        }
-      }
-    }
+    EventFactory.connectIO(this)
   })
 
   val id_csr_en = id_ctrl.csr.isOneOf(CSR.S, CSR.C, CSR.W)

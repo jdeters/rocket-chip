@@ -296,11 +296,10 @@ class CSRFile(
   customCSRs: Seq[CustomCSR] = Nil)(implicit p: Parameters)
     extends CoreModule()(p)
     with HasCoreParameters {
-  val io = new CSRFileIO {
+  val io = new CSRFileIO with EventIO {
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
     val flushInstructionCounters = Output(Bool())
     flushInstructionCounters := false.B
-    val incomingEvents = Input(Vec(40, UInt(xLen.W)))
   }
 
   implicit val csr = this
@@ -417,11 +416,9 @@ class CSRFile(
 
   val reg_instret = WideCounter(64, io.retire)
   val reg_cycle = if (enableCommitLog) reg_instret else withClock(io.ungated_clock) { WideCounter(64, !io.csr_stall) }
+
   val reg_hpmevent = RegInit(VecInit(Seq.fill(CSR.nHPM)(0.U(xLen))))
   val reg_hpmcounter = RegInit(VecInit(Seq.fill(CSR.nHPM)(0.U(CSR.hpmWidth))))
-
-  println(reg_hpmevent.size)
-  println(reg_hpmcounter.size)
 
   val mip = Wire(init=reg_mip)
   mip.lip := (io.interrupts.lip: Seq[Bool])
