@@ -10,28 +10,13 @@ import scala.collection.mutable._
 
 /** A perfromance monitor event
   */
-case class Event(name: String, id: UInt, module: EventModule)
-
-class EventModule extends Module {
-  val io = IO(new Bundle {
-    val conditionIn = Input(Bool())
-    val conditionOut = Output(Bool())
-  })
-
-  io.conditionOut := io.conditionIn
-}
+case class Event(name: String, id: UInt, handle: Data)
 
 object EventFactory {
-  var events = ArrayBuffer[Event]()
+  val events = ArrayBuffer[Event]()
 
   def apply(name: String, condition: () => Bool, id: UInt) {
-    val newCondtionModule = Module(new EventModule)
-
-    newCondtionModule.io.conditionIn := condition()
-
-    val newEvent = Event(name, id, newCondtionModule)
-
-    events += newEvent
+    events += Event(name, id, SignalThreadder.pluck(name, condition()))
   }
 
   def printEventNames = {
@@ -41,7 +26,7 @@ object EventFactory {
 
   def connectEvents (csr: CSRFile) = {
     for((event, i) <- events zipWithIndex)  {
-      when((event.module).io.conditionOut) {
+      when(event.handle.asInstanceOf[Bool]) {
         csr.io.incomingEvents(i) := event.id
       }
     }
