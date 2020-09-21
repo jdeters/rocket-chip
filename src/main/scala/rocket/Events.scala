@@ -27,7 +27,7 @@ object EventFactory {
     events.foreach(event => println(s"Event: ${event.name}"))
   }
 
-  //NOTE: would it make sense to create some sort of try/catch that checks the type and/or elabration context
+  //given a CSR file, connect the events WITHIN that file
   def connectIO (csr: CSRFile) = {
     //create the logic to check incoming event signals
     for(incomingEvent <- csr.io.incomingEvents){

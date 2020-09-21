@@ -41,7 +41,6 @@ class FrontendResp(implicit p: Parameters) extends CoreBundle()(p) {
 }
 
 class FrontendPerfEvents extends Bundle {
-  val acquire = Bool()
   val tlbMiss = Bool()
 }
 
@@ -327,7 +326,6 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   io.cpu.resp <> fq.io.deq
 
   // performance events
-  io.cpu.perf := icache.io.perf
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.errors := icache.io.errors
 
