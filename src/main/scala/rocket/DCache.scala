@@ -984,8 +984,8 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
     lrscCount > 0 || blockProbeAfterGrantCount > 0
 
   // performance events
-  io.cpu.perf.acquire := edge.done(tl_out_a)
-  io.cpu.perf.release := edge.done(tl_out_c)
+  println("Pluck here")
+  SignalThreadder.pluck("dcache_release", edge.done(tl_out_c))
   io.cpu.perf.grant := tl_out.d.valid && d_last
   io.cpu.perf.tlbMiss := io.ptw.req.fire()
   io.cpu.perf.storeBufferEmptyAfterLoad := !(
@@ -1078,7 +1078,10 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   } // leaving gated-clock domain
-  val dcacheImpl = withClock (gated_clock) { new DCacheModuleImpl }
+  val dcacheImpl = withClock (gated_clock) { new DCacheModuleImpl {
+      EventFactory("D$ miss", () => edge.done(tl_out_a), 0x13)
+      EventFactory("D$ release", () => edge.done(tl_out_c), 0x14)
+  }}
 
   def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt

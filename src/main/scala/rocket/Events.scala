@@ -19,6 +19,7 @@ object EventFactory {
 
   def apply(name: String, condition: () => Bool, id: UInt) {
     //NOTE: if the signals are plucked merged into another pluck, this could possbily lead to a lot of reduency
+    println(s"Adding event $name")
     events += Event(name, id, SignalThreadder.pluck(name, condition()))
   }
 

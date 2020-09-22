@@ -822,7 +822,10 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   io.rocc.cmd.bits.rs2 := wb_reg_rs2
 
   // gate the clock
-  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 || io.dmem.perf.release || take_pc
+  //this has to be wraped in a wire to get around this bug: https://github.com/freechipsproject/firrtl/issues/1161
+  val release = Wire(SignalThreadder.thread("dcache_release").asInstanceOf[Bool])
+  val unpause = csr.io.time(rocketParams.lgPauseCycles-1, 0) === 0 ||
+  release || take_pc
   when (unpause) { id_reg_pause := false }
   io.cease := csr.io.status.cease && !clock_en_reg
   io.wfi := csr.io.status.wfi
@@ -841,30 +844,7 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   }
 
   // evaluate performance counters
-  val icache_blocked = !(io.imem.resp.valid || RegNext(io.imem.resp.valid))
-
-  EventFactory("exception", () => false.B, 0x0)
-  EventFactory("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp, 0x1)
-  EventFactory("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp, 0x2)
-  EventFactory("amo", () => Bool(usingAtomics) && id_ctrl.mem && (isAMO(id_ctrl.mem_cmd) || id_ctrl.mem_cmd.isOneOf(M_XLR, M_XSC)), 0x3)
-  EventFactory("system", () => id_ctrl.csr =/= CSR.N, 0x4)
-  EventFactory("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.mul || id_ctrl.div || id_ctrl.csr =/= CSR.N), 0x5)
-  EventFactory("branch", () => id_ctrl.branch, 0x6)
-  EventFactory("jal", () => id_ctrl.jal, 0x7)
-  EventFactory("jalr", () => id_ctrl.jalr, 0x8)
-  EventFactory("load-use interlock", () => id_ex_hazard && ex_ctrl.mem || id_mem_hazard && mem_ctrl.mem || id_wb_hazard && wb_ctrl.mem, 0x9)
-  EventFactory("long-latency interlock", () => id_sboard_hazard, 0xa)
-  EventFactory("csr interlock", () => id_ex_hazard && ex_ctrl.csr =/= CSR.N || id_mem_hazard && mem_ctrl.csr =/= CSR.N || id_wb_hazard && wb_ctrl.csr =/= CSR.N, 0xb)
-  EventFactory("I$ blocked", () => icache_blocked, 0xc)
-  EventFactory("D$ blocked", () => id_ctrl.mem && dcache_blocked, 0xd)
-  EventFactory("branch misprediction", () => take_pc_mem && mem_direction_misprediction, 0xe)
-  EventFactory("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !icache_blocked, 0xf)
-  EventFactory("flush", () => wb_reg_flush_pipe, 0x10)
-  EventFactory("replay", () => replay_wb, 0x11)
-  //EventFactory("I$ miss", () => io.imem.perf.acquire, 0x12)
-  EventFactory("D$ miss", () => io.dmem.perf.acquire, 0x13)
-  EventFactory("D$ release", () => io.dmem.perf.release, 0x14)
-  EventFactory("ITLB miss", () => io.imem.perf.tlbMiss, 0x15)
+  //EventFactory("ITLB miss", () => io.imem.perf.tlbMiss, 0x15)
   EventFactory("DTLB miss", () => io.dmem.perf.tlbMiss, 0x16)
   EventFactory("L2 TLB miss", () => io.ptw.perf.l2miss, 0x17)
   if (usingMulDiv) {
@@ -972,7 +952,27 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
   )(csr.io.time)
 
   } // leaving gated-clock domain
-  val rocketImpl = withClock (gated_clock) { new RocketImpl }
+  val rocketImpl = withClock (gated_clock) { new RocketImpl{
+    EventFactory("exception", () => false.B, 0x0.U)
+    EventFactory("load", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XRD && !id_ctrl.fp, 0x1)
+    EventFactory("store", () => id_ctrl.mem && id_ctrl.mem_cmd === M_XWR && !id_ctrl.fp, 0x2)
+    EventFactory("amo", () => Bool(usingAtomics) && id_ctrl.mem && (isAMO(id_ctrl.mem_cmd) || id_ctrl.mem_cmd.isOneOf(M_XLR, M_XSC)), 0x3)
+    EventFactory("system", () => id_ctrl.csr =/= CSR.N, 0x4)
+    EventFactory("arith", () => id_ctrl.wxd && !(id_ctrl.jal || id_ctrl.jalr || id_ctrl.mem || id_ctrl.fp || id_ctrl.mul || id_ctrl.div || id_ctrl.csr =/= CSR.N), 0x5)
+    EventFactory("branch", () => id_ctrl.branch, 0x6)
+    EventFactory("jal", () => id_ctrl.jal, 0x7)
+    EventFactory("jalr", () => id_ctrl.jalr, 0x8)
+    EventFactory("load-use interlock", () => id_ex_hazard && ex_ctrl.mem || id_mem_hazard && mem_ctrl.mem || id_wb_hazard && wb_ctrl.mem, 0x9)
+    EventFactory("long-latency interlock", () => id_sboard_hazard, 0xa)
+    EventFactory("csr interlock", () => id_ex_hazard && ex_ctrl.csr =/= CSR.N || id_mem_hazard && mem_ctrl.csr =/= CSR.N || id_wb_hazard && wb_ctrl.csr =/= CSR.N, 0xb)
+    EventFactory("D$ blocked", () => id_ctrl.mem && dcache_blocked, 0xd)
+    EventFactory("branch misprediction", () => take_pc_mem && mem_direction_misprediction, 0xe)
+    EventFactory("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !(io.imem.resp.valid || RegNext(io.imem.resp.valid)), 0xf)
+    EventFactory("flush", () => wb_reg_flush_pipe, 0x10)
+    EventFactory("replay", () => replay_wb, 0x11)
+
+    EventFactory.connectEvents(csr)
+  }}
 
   def checkExceptions(x: Seq[(Bool, UInt)]) =
     (x.map(_._1).reduce(_||_), PriorityMux(x))
