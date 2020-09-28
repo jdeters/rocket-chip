@@ -674,11 +674,8 @@ class DataArray(implicit p: Parameters) extends L1HellaCacheModule()(p) {
 }
 
 class NonBlockingDCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters) extends HellaCache(staticIdForMetadataUseOnly)(p) {
-  override lazy val module = new NonBlockingDCacheModule(this) {
-      EventFactory("D$ miss", () => edge.done(tl_out.a), 0x13)
-      EventFactory("D$ release", () => edge.done(tl_out.c), 0x14)
-      EventFactory("DTLB miss", () => io.ptw.req.fire(), 0x16)
-  }
+  override lazy val module = new NonBlockingDCacheModule(this)
+  
   override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }
 

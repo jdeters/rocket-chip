@@ -1093,11 +1093,7 @@ class DCacheModule(outer: DCache) extends HellaCacheModule(outer) {
   }
 
   } // leaving gated-clock domain
-  val dcacheImpl = withClock (gated_clock) { new DCacheModuleImpl {
-      EventFactory("D$ miss", () => edge.done(tl_out_a), 0x13)
-      EventFactory("D$ release", () => edge.done(tl_out_c), 0x14)
-      EventFactory("DTLB miss", () => io.ptw.req.fire(), 0x16)
-  }}
+  val dcacheImpl = withClock (gated_clock) { new DCacheModuleImpl }
 
   def encodeData(x: UInt, poison: Bool) = x.grouped(eccBits).map(dECC.encode(_, if (dECC.canDetect) poison else false.B)).asUInt
   def dummyEncodeData(x: UInt) = x.grouped(eccBits).map(dECC.swizzle(_)).asUInt

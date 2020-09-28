@@ -396,9 +396,7 @@ trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p){
-    EventFactory("L2 TLB miss", () => l2Miss, 0x17)
-  })
+  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
   if (outer.usingPTW) {
     dcachePorts += ptw.io.mem
     outer.utlbOMSRAMs ++= ptw.omSRAMs

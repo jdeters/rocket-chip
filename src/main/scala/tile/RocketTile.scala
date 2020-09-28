@@ -135,17 +135,7 @@ class RocketTileModuleImp(outer: RocketTile) extends BaseTileModuleImp(outer)
     with HasICacheFrontendModule {
   Annotated.params(this, outer.rocketParams)
 
-  val core = Module(new Rocket(outer)(outer.p) {
-    //create a new piece of hardware
-    val instructionCounters = Module(new InstructionCounters(rocketImpl.decode_table))
-    //wire up all the signals we need
-    instructionCounters.io.inst := io.trace(0).insn
-    instructionCounters.io.valid := io.trace(0).valid
-    //define some new behavior to control the hardware
-    when(rocketImpl.csr.io.flushInstructionCounters) {
-      instructionCounters.reset := true.B
-    }
-  })
+  val core = Module(new Rocket(outer)(outer.p))
 
   val traceValidEnable = Wire(Bool())
   withReset(outer.rawReset) {   // use unmodified reset for notification ports

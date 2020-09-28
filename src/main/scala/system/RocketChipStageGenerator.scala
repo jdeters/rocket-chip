@@ -9,6 +9,9 @@ import firrtl.options.{Dependency, Phase, PhaseManager, PreservesAll, Shell, Sta
 import firrtl.stage.FirrtlCli
 import freechips.rocketchip.stage.RocketChipCli
 
+import chiselaspects._
+import scala.meta._
+
 /** Modified ChiselStage that includes the GenerateROMs phase */
 private[freechips] final class RocketChiselStage extends ChiselStage {
 
@@ -26,6 +29,9 @@ private[freechips] final class RocketChiselStage extends ChiselStage {
 }
 
 class RocketChipStage extends Stage with PreservesAll[Phase] {
+
+  AspectManager("/home/whytheam/Research/chisel/rocket-chip/src/main/scala")((tree: Tree) => new EventAspect(tree)())
+
 
   override val shell = new Shell("rocket-chip") with RocketChipCli with ChiselCli with FirrtlCli
   val targets: Seq[PhaseDependency] = Seq(

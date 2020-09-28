@@ -298,8 +298,6 @@ class CSRFile(
     with HasCoreParameters {
   val io = new CSRFileIO with EventIO {
     val customCSRs = Vec(CSRFile.this.customCSRs.size, new CustomCSRIO).asOutput
-    val flushInstructionCounters = Output(Bool())
-    flushInstructionCounters := false.B
   }
 
   implicit val csr = this
