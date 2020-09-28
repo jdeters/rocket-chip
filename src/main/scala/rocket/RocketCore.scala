@@ -843,26 +843,6 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     assert(!(ex_pc_valid || mem_pc_valid || wb_pc_valid) || clock_en)
   }
 
-  // evaluate performance counters
-  //EventFactory("ITLB miss", () => io.imem.perf.tlbMiss, 0x15)
-  EventFactory("DTLB miss", () => io.dmem.perf.tlbMiss, 0x16)
-  EventFactory("L2 TLB miss", () => io.ptw.perf.l2miss, 0x17)
-  if (usingMulDiv) {
-    EventFactory("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV, 0x18)
-    EventFactory("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV, 0x19)
-    EventFactory("mul/div interlock", () => id_ex_hazard && (ex_ctrl.mul || ex_ctrl.div) || id_mem_hazard && (mem_ctrl.mul || mem_ctrl.div) || id_wb_hazard && wb_ctrl.div, 0x1a)
-  }
-  if (usingFPU) {
-    EventFactory("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen, 0x1b)
-    EventFactory("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen, 0x1c)
-    EventFactory("fp add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.swap23, 0x1d)
-    EventFactory("fp mul", () => id_ctrl.fp && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3, 0x1e)
-    EventFactory("fp mul-add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.ren3, 0x1f)
-    EventFactory("fp div/sqrt", () => id_ctrl.fp && (io.fpu.dec.div || io.fpu.dec.sqrt), 0x20)
-    EventFactory("fp other", () => id_ctrl.fp && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt), 0x21)
-    EventFactory("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu, 0x22)
-  }
-
   val coreMonitorBundle = Wire(new CoreMonitorBundle(xLen, fLen))
 
   coreMonitorBundle.clock := clock
@@ -970,6 +950,21 @@ class Rocket(tile: RocketTile)(implicit p: Parameters) extends CoreModule()(p)
     EventFactory("control-flow target misprediction", () => take_pc_mem && mem_misprediction && mem_cfi && !mem_direction_misprediction && !(io.imem.resp.valid || RegNext(io.imem.resp.valid)), 0xf)
     EventFactory("flush", () => wb_reg_flush_pipe, 0x10)
     EventFactory("replay", () => replay_wb, 0x11)
+    if (usingMulDiv) {
+      EventFactory("mul", () => if (pipelinedMul) id_ctrl.mul else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) =/= ALU.FN_DIV, 0x18)
+      EventFactory("div", () => if (pipelinedMul) id_ctrl.div else id_ctrl.div && (id_ctrl.alu_fn & ALU.FN_DIV) === ALU.FN_DIV, 0x19)
+      EventFactory("mul/div interlock", () => id_ex_hazard && (ex_ctrl.mul || ex_ctrl.div) || id_mem_hazard && (mem_ctrl.mul || mem_ctrl.div) || id_wb_hazard && wb_ctrl.div, 0x1a)
+    }
+    if (usingFPU) {
+      EventFactory("fp load", () => id_ctrl.fp && io.fpu.dec.ldst && io.fpu.dec.wen, 0x1b)
+      EventFactory("fp store", () => id_ctrl.fp && io.fpu.dec.ldst && !io.fpu.dec.wen, 0x1c)
+      EventFactory("fp add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.swap23, 0x1d)
+      EventFactory("fp mul", () => id_ctrl.fp && io.fpu.dec.fma && !io.fpu.dec.swap23 && !io.fpu.dec.ren3, 0x1e)
+      EventFactory("fp mul-add", () => id_ctrl.fp && io.fpu.dec.fma && io.fpu.dec.ren3, 0x1f)
+      EventFactory("fp div/sqrt", () => id_ctrl.fp && (io.fpu.dec.div || io.fpu.dec.sqrt), 0x20)
+      EventFactory("fp other", () => id_ctrl.fp && !(io.fpu.dec.ldst || io.fpu.dec.fma || io.fpu.dec.div || io.fpu.dec.sqrt), 0x21)
+      EventFactory("fp interlock", () => id_ex_hazard && ex_ctrl.fp || id_mem_hazard && mem_ctrl.fp || id_wb_hazard && wb_ctrl.fp || id_ctrl.fp && id_stall_fpu, 0x22)
+    }
 
     EventFactory.connectEvents(csr)
   }}

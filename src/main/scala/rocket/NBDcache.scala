@@ -677,6 +677,7 @@ class NonBlockingDCache(staticIdForMetadataUseOnly: Int)(implicit p: Parameters)
   override lazy val module = new NonBlockingDCacheModule(this) {
       EventFactory("D$ miss", () => edge.done(tl_out.a), 0x13)
       EventFactory("D$ release", () => edge.done(tl_out.c), 0x14)
+      EventFactory("DTLB miss", () => io.ptw.req.fire(), 0x16)
   }
   override def getOMSRAMs(): Seq[OMSRAM] = Nil // this is just a dummy value and that we need to eventually fix it
 }
@@ -1008,9 +1009,6 @@ class NonBlockingDCacheModule(outer: NonBlockingDCache) extends HellaCacheModule
   io.cpu.s2_xcpt := Mux(RegNext(s1_xcpt_valid), RegEnable(s1_xcpt, s1_clk_en), 0.U.asTypeOf(s1_xcpt))
   io.cpu.s2_uncached := false.B
   io.cpu.s2_paddr := s2_req.addr
-
-  // performance events
-  io.cpu.perf.tlbMiss := io.ptw.req.fire()
 
   // no clock-gating support
   io.cpu.clock_enabled := true

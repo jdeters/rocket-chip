@@ -39,17 +39,12 @@ class TLBPTWIO(implicit p: Parameters) extends CoreBundle()(p)
   val customCSRs = coreParams.customCSRs.asInput
 }
 
-class PTWPerfEvents extends Bundle {
-  val l2miss = Bool()
-}
-
 class DatapathPTWIO(implicit p: Parameters) extends CoreBundle()(p)
     with HasCoreParameters {
   val ptbr = new PTBR().asInput
   val sfence = Valid(new SFenceReq).flip
   val status = new MStatus().asInput
   val pmp = Vec(nPMPs, new PMP).asInput
-  val perf = new PTWPerfEvents().asOutput
   val customCSRs = coreParams.customCSRs.asInput
   val clock_enabled = Bool(OUTPUT)
 }
@@ -99,6 +94,8 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
     val mem = new HellaCacheIO
     val dpath = new DatapathPTWIO
   }
+
+  val l2Miss = Wire(Bool())
 
   val omSRAMs = collection.mutable.ListBuffer[OMSRAM]()
 
@@ -192,7 +189,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
   val l2_refill = RegNext(false.B)
   l2_refill_wire := l2_refill
-  io.dpath.perf.l2miss := false
+  l2Miss := false.B
   val (l2_hit, l2_error, l2_pte, l2_tlb_ram) = if (coreParams.nL2TLBEntries == 0) (false.B, false.B, Wire(new PTE), None) else {
     val code = new ParityCode
     require(isPow2(coreParams.nL2TLBEntries))
@@ -235,7 +232,7 @@ class PTW(n: Int)(implicit edge: TLEdgeOut, p: Parameters) extends CoreModule()(
 
     val s2_entry = s2_rdata.uncorrected.asTypeOf(new L2TLBEntry)
     val s2_hit = s2_valid && s2_valid_bit && r_tag === s2_entry.tag
-    io.dpath.perf.l2miss := s2_valid && !(s2_valid_bit && r_tag === s2_entry.tag)
+    l2Miss := s2_valid && !(s2_valid_bit && r_tag === s2_entry.tag)
     val s2_pte = Wire(new PTE)
     s2_pte := s2_entry
     s2_pte.g := s2_g
@@ -399,7 +396,9 @@ trait CanHavePTW extends HasTileParameters with HasHellaCache { this: BaseTile =
 trait CanHavePTWModule extends HasHellaCacheModule {
   val outer: CanHavePTW
   val ptwPorts = ListBuffer(outer.dcache.module.io.ptw)
-  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p))
+  val ptw = Module(new PTW(outer.nPTWPorts)(outer.dcache.node.edges.out(0), outer.p){
+    EventFactory("L2 TLB miss", () => l2Miss, 0x17)
+  })
   if (outer.usingPTW) {
     dcachePorts += ptw.io.mem
     outer.utlbOMSRAMs ++= ptw.omSRAMs
