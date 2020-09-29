@@ -12,7 +12,6 @@ class EventAspect (tree: Tree) extends Aspect(tree) {
     EventFactory("DTLB miss", () => io.ptw.req.fire(), 0x16)
   """)
 
-
   //adding events to the Non-Blocking Cache
   around(init"NonBlockingDCacheModule(this)", q"""
     EventFactory("DCache miss", () => edge.done(tl_out.a), 0x13)

@@ -30,6 +30,7 @@ private[freechips] final class RocketChiselStage extends ChiselStage {
 
 class RocketChipStage extends Stage with PreservesAll[Phase] {
 
+  //TODO: Figure out how to make this seperate from the actual generation
   AspectManager("/home/whytheam/Research/chisel/rocket-chip/src/main/scala")((tree: Tree) => new EventAspect(tree)())
 
 

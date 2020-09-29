@@ -2,6 +2,7 @@ target/
 project/target
 docs/generated
 docs-target/
+woven/
 *.fir
 *.v
 *.anno.json
