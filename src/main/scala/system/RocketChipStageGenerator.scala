@@ -31,7 +31,7 @@ private[freechips] final class RocketChiselStage extends ChiselStage {
 class RocketChipStage extends Stage with PreservesAll[Phase] {
 
   //TODO: Figure out how to make this seperate from the actual generation
-  AspectManager("/home/whytheam/Research/chisel/rocket-chip/src/main/scala")((tree: Tree) => new EventAspect(tree)())
+  AspectManager("/home/whytheam/Research/chisel/rocket-chip/src/main/scala")((tree: Tree) => new CacheMissEventAspect(new PerfEventAspect(new EventAspect(tree)())())())
 
 
   override val shell = new Shell("rocket-chip") with RocketChipCli with ChiselCli with FirrtlCli
