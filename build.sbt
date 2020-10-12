@@ -17,7 +17,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-deprecation","-unchecked","-Xsource:2.11"),
   libraryDependencies ++= Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value),
   libraryDependencies ++= Seq("org.json4s" %% "json4s-jackson" % "3.6.1"),
-  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.8" % "test"),
+  libraryDependencies ++= Seq("org.scalatest" %% "scalatest" % "3.2.0" % "test"),
   libraryDependencies ++= Seq("default" %% "chiselaspects" % "0.1"),
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   resolvers ++= Seq(
