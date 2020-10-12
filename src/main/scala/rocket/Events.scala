@@ -7,7 +7,6 @@ import chisel3._
 import freechips.rocketchip.util._
 import scala.collection.mutable._
 
-
 trait EventIO {
   val incomingEvents = Input(Vec(40, UInt(32.W)))
 }

@@ -7,7 +7,6 @@ import Chisel._
 import chisel3.dontTouch
 import freechips.rocketchip.amba._
 import freechips.rocketchip.config.{Parameters, Field}
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.model.OMSRAM
 import freechips.rocketchip.tile._
@@ -20,6 +19,7 @@ case class DCacheParams(
     nWays: Int = 4,
     rowBits: Int = 64,
     subWordBits: Option[Int] = None,
+    replacementPolicy: String = "random",
     nTLBSets: Int = 1,
     nTLBWays: Int = 32,
     nTLBBasePageSectors: Int = 4,

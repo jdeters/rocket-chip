@@ -3,12 +3,11 @@
 package freechips.rocketchip.amba.axi4
 
 import chisel3._
-import chisel3.util.{Cat, IrrevocableIO, isPow2, log2Ceil,
+import chisel3.util.{Cat, isPow2, log2Ceil, ReadyValidIO,
   log2Up, OHToUInt, Queue, QueueIO, UIntToOH}
 import freechips.rocketchip.config.Parameters
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.util.{leftOR, rightOR, UIntToOH1, OH1ToOH}
-import scala.math.{min,max}
+import freechips.rocketchip.util.leftOR
 
 class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.default)(implicit p: Parameters) extends LazyModule
 {
@@ -35,7 +34,7 @@ class AXI4Deinterleaver(maxReadBytes: Int, buffer: BufferParams = BufferParams.d
 
       if (beats <= 1) {
         // Nothing to do if only single-beat R
-        in.r <> buffer.irrevocable(out.r)
+        in.r.asInstanceOf[ReadyValidIO[AXI4BundleR]] :<> buffer.irrevocable(out.r)
       } else {
         // Queues to buffer R responses
         val qs = Seq.tabulate(endId) { i =>
