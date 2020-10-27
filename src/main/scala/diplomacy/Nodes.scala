@@ -227,12 +227,6 @@ abstract class BaseNode(implicit val valName: ValName) {
     */
   protected[diplomacy] def instantiate(): Seq[Dangle]
 
-  /** A callback to finish the node generation.
-    *
-    * This will be executed in [[LazyModuleImpLike.instantiate]].
-    */
-  protected[diplomacy] def finishInstantiate(): Unit
-
   /** @return name of this node. */
   def name: String = scope.map(_.name).getOrElse("TOP") + "." + valName.name
 
@@ -639,7 +633,7 @@ trait InwardNode[DI, UI, BI <: Data] extends BaseNode {
     * @param node    the [[OutwardNode]] to bind to this [[InwardNode]].
     * @param binding [[NodeBinding]] type.
     */
-  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def iPush(index: Int, node: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!iRealized,
       s"""Diplomacy has detected a problem in your code:
@@ -732,7 +726,7 @@ trait OutwardNode[DO, UO, BO <: Data] extends BaseNode {
     * @param node    [[InwardNode]] to bind to.
     * @param binding Binding type.
     */
-  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def oPush(index: Int, node: InwardNode [DO, UO, BO], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val info = sourceLine(sourceInfo, " at ", "")
     require (!oRealized,
       s"""Diplomacy has detected a problem in your code:
@@ -1235,23 +1229,27 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
       data   = bundleIn(i))
   }
 
-  private var bundlesSafeNow = false
+  private[diplomacy] var instantiated = false
 
   /** Gather Bundle and edge parameters of outward ports.
     *
-    * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
+    * Accessors to the result of negotiation to be used within
+    * [[LazyModuleImp]] Code. Should only be used within [[LazyModuleImp]] code
+    * or after its instantiation has completed.
     */
   def out: Seq[(BO, EO)] = {
-    require(bundlesSafeNow, s"$name.out should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
+    require(instantiated, s"$name.out should not be called until after instantiation of its parent LazyModule.module has begun")
     bundleOut zip edgesOut
   }
 
   /** Gather Bundle and edge parameters of inward ports.
     *
-    * Accessors to the result of negotiation to be used within [[LazyModuleImp]] Code.
+    * Accessors to the result of negotiation to be used within
+    * [[LazyModuleImp]] Code. Should only be used within [[LazyModuleImp]] code
+    * or after its instantiation has completed.
     */
   def in: Seq[(BI, EI)] = {
-    require(bundlesSafeNow, s"$name.in should only be called from the context of ${scope.get.name}'s LazyModuleImp, but the current scope is ${LazyModule.scope}.")
+    require(instantiated, s"$name.in should not be called until after instantiation of its parent LazyModule.module has begun")
     bundleIn zip edgesIn
   }
 
@@ -1261,7 +1259,7 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     * and return all the dangles of this node.
     */
   protected[diplomacy] def instantiate(): Seq[Dangle] = {
-    bundlesSafeNow = true
+    instantiated = true
     if (!circuitIdentity) {
       (iPorts zip in) foreach {
         case ((_, _, p, _), (b, e)) => if (p(MonitorsEnabled)) inner.monitor(b, e)
@@ -1269,15 +1267,8 @@ sealed abstract class MixedNode[DI, UI, EI, BI <: Data, DO, UO, EO, BO <: Data](
     danglesOut ++ danglesIn
   }
 
-  /** Complete instantiation. It is no longer safe to access the Bundle
-    * wires as the [[LazyModuleImp]] has been completely evaluated to create a [[Module]].
-    */
-  protected[diplomacy] def finishInstantiate(): Unit = {
-    bundlesSafeNow = false
-  }
-
   /** Connects the outward part of a node with the inward part of this node. */
-  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo) {
+  protected[diplomacy] def bind(h: OutwardNode[DI, UI, BI], binding: NodeBinding)(implicit p: Parameters, sourceInfo: SourceInfo): Unit = {
     val x = this // x := y
     val y = h
     val info = sourceLine(sourceInfo, " at ", "")

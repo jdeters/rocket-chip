@@ -9,7 +9,7 @@ import Chisel.ImplicitConversions._
 import freechips.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.subsystem.CacheBlockBytes
 import freechips.rocketchip.diplomacy.RegionType
-import freechips.rocketchip.tile.{XLen, CoreModule, CoreBundle}
+import freechips.rocketchip.tile.{CoreModule, CoreBundle}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -114,7 +114,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
     }
   }
 
-  def insert(tag: UInt, level: UInt, entry: TLBEntryData) {
+  def insert(tag: UInt, level: UInt, entry: TLBEntryData): Unit = {
     this.tag := tag
     this.level := level.extract(log2Ceil(pgLevels - superpageOnly.toInt)-1, 0)
 
@@ -123,8 +123,8 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
     data(idx) := entry.asUInt
   }
 
-  def invalidate() { valid.foreach(_ := false) }
-  def invalidateVPN(vpn: UInt) {
+  def invalidate(): Unit = { valid.foreach(_ := false) }
+  def invalidateVPN(vpn: UInt): Unit = {
     if (superpage) {
       when (hit(vpn)) { invalidate() }
     } else {
@@ -138,7 +138,7 @@ class TLBEntry(val nSectors: Int, val superpage: Boolean, val superpageOnly: Boo
       }
     }
   }
-  def invalidateNonGlobal() {
+  def invalidateNonGlobal(): Unit = {
     for ((v, e) <- valid zip entry_data)
       when (!e.g) { v := false }
   }

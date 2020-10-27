@@ -96,8 +96,9 @@ trait HasNonDiplomaticTileParameters {
     val f = if (tileParams.core.fpu.nonEmpty) "f" else ""
     val d = if (tileParams.core.fpu.nonEmpty && tileParams.core.fpu.get.fLen > 32) "d" else ""
     val c = if (tileParams.core.useCompressed) "c" else ""
+    val b = if (tileParams.core.useBitManip) "b" else ""
     val v = if (tileParams.core.useVector) "v" else ""
-    s"rv${p(XLen)}$ie$m$a$f$d$c$v"
+    s"rv${p(XLen)}$ie$m$a$f$d$c$b$v"
   }
 
   def tileProperties: PropertyMap = {
@@ -128,7 +129,9 @@ trait HasNonDiplomaticTileParameters {
         "tlb-split" -> Nil,
         "mmu-type"  -> s"riscv,sv$maxSVAddrBits".asProperty)
 
-    val pmp = if (tileParams.core.nPMPs > 0) Map("riscv,pmpregions" -> tileParams.core.nPMPs.asProperty) else Nil
+    val pmp = if (tileParams.core.nPMPs > 0) Map(
+      "riscv,pmpregions" -> tileParams.core.nPMPs.asProperty,
+      "riscv,pmpgranularity" -> tileParams.core.pmpGranularity.asProperty) else Nil
 
     dcache ++ icache ++ dtlb ++ itlb ++ mmu ++ pmp ++ incoherent
   }
@@ -288,14 +291,14 @@ abstract class BaseTile private (val crossing: ClockCrossingType, q: Parameters)
   def rawReset = externalClockSinkNode.in.head._1.reset
 
   /** Helper function for connecting MMIO devices inside the tile to an xbar that will make them visible to external masters. */
-  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int) {
+  def connectTLSlave(xbarNode: TLOutwardNode, node: TLNode, bytes: Int): Unit = {
     DisableMonitors { implicit p =>
       (Seq(node, TLFragmenter(bytes, cacheBlockBytes, earlyAck=EarlyAck.PutFulls))
         ++ (xBytes != bytes).option(TLWidthWidget(xBytes)))
         .foldRight(xbarNode)(_ :*= _)
     }
   }
-  def connectTLSlave(node: TLNode, bytes: Int) { connectTLSlave(tlSlaveXbar.node, node, bytes) }
+  def connectTLSlave(node: TLNode, bytes: Int): Unit = { connectTLSlave(tlSlaveXbar.node, node, bytes) }
 
   /** TileLink node which represents the view that the intra-tile masters have of the rest of the system. */
   val visibilityNode = p(TileVisibilityNodeKey)

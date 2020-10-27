@@ -10,7 +10,6 @@ import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util._
 
 class BaseSubsystemConfig extends Config ((site, here, up) => {
@@ -25,7 +24,8 @@ class BaseSubsystemConfig extends Config ((site, here, up) => {
   case ControlBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
-    errorDevice = Some(DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096)))
+    errorDevice = Some(BuiltInErrorDeviceParams(
+      errorParams = DevNullParams(List(AddressSet(0x3000, 0xfff)), maxAtomic=site(XLen)/8, maxTransfer=4096))))
   case PeripheryBusKey => PeripheryBusParams(
     beatBytes = site(XLen)/8,
     blockBytes = site(CacheBlockBytes),
@@ -234,7 +234,10 @@ class WithBufferlessBroadcastHub extends Config((site, here, up) => {
  */
 class WithIncoherentTiles extends Config((site, here, up) => {
   case RocketCrossingKey => up(RocketCrossingKey, site) map { r =>
-    r.copy(master = r.master.copy(cork = Some(true)))
+    r.copy(master = r.master match {
+      case x: TileMasterPortParams => x.copy(cork = Some(true))
+      case _ => throw new Exception("Unrecognized type for RocketCrossingParams.master")
+    })
   }
   case BankedL2Key => up(BankedL2Key, site).copy(
     coherenceManager = CoherenceManagerWrapper.incoherentManager
@@ -370,7 +373,7 @@ class WithNMemoryChannels(n: Int) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(_.copy(nMemoryChannels = n))
 })
 
-class WithExtMemSize(n: Long) extends Config((site, here, up) => {
+class WithExtMemSize(n: BigInt) extends Config((site, here, up) => {
   case ExtMem => up(ExtMem, site).map(x => x.copy(master = x.master.copy(size = n)))
 })
 

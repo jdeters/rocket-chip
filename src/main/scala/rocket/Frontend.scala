@@ -9,9 +9,7 @@ import chisel3.{withClock,withReset}
 import chisel3.internal.sourceinfo.SourceInfo
 import chisel3.experimental.chiselName
 import freechips.rocketchip.config._
-import freechips.rocketchip.subsystem._
 import freechips.rocketchip.diplomacy._
-import freechips.rocketchip.tilelink._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.util._
 import freechips.rocketchip.util.property._
@@ -118,7 +116,7 @@ class FrontendModule(outer: Frontend) extends LazyModuleImp(outer)
   val s2_speculative = Reg(init=Bool(false))
   val s2_partial_insn_valid = RegInit(false.B)
   val s2_partial_insn = Reg(UInt(width = coreInstBits))
-  val wrong_path = Reg(Bool())
+  val wrong_path = RegInit(false.B)
 
   val s1_base_pc = ~(~s1_pc | (fetchBytes - 1))
   val ntpc = s1_base_pc + fetchBytes.U

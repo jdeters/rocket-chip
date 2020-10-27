@@ -2,7 +2,6 @@
 
 package freechips.rocketchip.subsystem
 
-import Chisel._
 import freechips.rocketchip.config.{Parameters}
 import freechips.rocketchip.devices.tilelink._
 import freechips.rocketchip.diplomacy._
@@ -14,8 +13,8 @@ case class SystemBusParams(
     blockBytes: Int,
     policy: TLArbiter.Policy = TLArbiter.roundRobin,
     dtsFrequency: Option[BigInt] = None,
-    zeroDevice: Option[AddressSet] = None,
-    errorDevice: Option[DevNullParams] = None,
+    zeroDevice: Option[BuiltInZeroDeviceParams] = None,
+    errorDevice: Option[BuiltInErrorDeviceParams] = None,
     replication: Option[ReplicatedRegion] = None)
   extends HasTLBusParams
   with HasBuiltInDeviceParams

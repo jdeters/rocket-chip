@@ -2,11 +2,14 @@
 global def rocketChipRoot = here
 publish ivyDepLocations = rocketChipRoot, Nil
 
+def hardfloatRoot = findGitRepositoryWithFallback "hardfloat"
+
 global def hardfloatScalaModule =
   makeScalaModuleFromJSON here "hardfloat"
-  | setScalaModuleRootDir "hardfloat"
+  | setScalaModuleRootDir hardfloatRoot
   | setScalaModuleDeps (chisel3ScalaModule, Nil)
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
+  | addChisel3CompilerPlugin
 
 global def rocketchipMacros =
   makeScalaModuleFromJSON here "rocketchipMacros"
@@ -25,6 +28,7 @@ global def rocketchipScalaModule =
   | setScalaModuleDeps deps
   | setScalaModuleScalacOptions ("-Xsource:2.11", Nil)
   | addMacrosParadiseCompilerPlugin
+  | addChisel3CompilerPlugin
 
 def vlsi_mem_gen = source "{rocketChipRoot}/scripts/vlsi_mem_gen"
 def vlsi_rom_gen = source "{rocketChipRoot}/scripts/vlsi_rom_gen"
