@@ -21,6 +21,7 @@ trait CoreParams {
   val useAtomics: Boolean
   val useAtomicsOnlyForIO: Boolean
   val useCompressed: Boolean
+  val useBitManip: Boolean = false
   val useVector: Boolean = false
   val useSCIE: Boolean
   val useRVE: Boolean
@@ -31,6 +32,7 @@ trait CoreParams {
   val retireWidth: Int
   val instBits: Int
   val nLocalInterrupts: Int
+  val useNMI: Boolean
   val nPMPs: Int
   val pmpGranularity: Int
   val nBreakpoints: Int
@@ -43,6 +45,7 @@ trait CoreParams {
   val misaWritable: Boolean
   val haveCFlush: Boolean
   val nL2TLBEntries: Int
+  val nL2TLBWays: Int
   val mtvecInit: Option[BigInt]
   val mtvecWritable: Boolean
   def customCSRs(implicit p: Parameters): CustomCSRs = new CustomCSRs
@@ -73,8 +76,10 @@ trait HasCoreParameters extends HasTileParameters {
   val usingAtomicsOnlyForIO = coreParams.useAtomicsOnlyForIO
   val usingAtomicsInCache = usingAtomics && !usingAtomicsOnlyForIO
   val usingCompressed = coreParams.useCompressed
+  val usingBitManip = coreParams.useBitManip
   val usingVector = coreParams.useVector
   val usingSCIE = coreParams.useSCIE
+  val usingNMI = coreParams.useNMI
 
   val retireWidth = coreParams.retireWidth
   val fetchWidth = coreParams.fetchWidth

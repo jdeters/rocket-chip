@@ -3,7 +3,7 @@
 package freechips.rocketchip.devices.debug
 
 import chisel3._
-import chisel3.experimental.IntParam
+import chisel3.experimental.{IntParam, noPrefix}
 import chisel3.util._
 import chisel3.util.HasBlackBoxResource
 import freechips.rocketchip.config.{Field, Parameters}
@@ -13,6 +13,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.diplomaticobjectmodel.logicaltree.LogicalModuleTree
 import freechips.rocketchip.jtag._
 import freechips.rocketchip.util._
+import freechips.rocketchip.prci.{ClockSinkParameters, ClockSinkNode}
 import freechips.rocketchip.tilelink._
 
 /** Protocols used for communicating with external debugging tools */
@@ -74,6 +75,11 @@ trait HasPeripheryDebug { this: BaseSubsystem =>
 
   val debugCustomXbarOpt = p(DebugModuleKey).map(params => LazyModule( new DebugCustomXbar(outputRequiresInput = false)))
   val apbDebugNodeOpt = p(ExportDebug).apb.option(APBMasterNode(Seq(APBMasterPortParameters(Seq(APBMasterParameters("debugAPB"))))))
+  val debugTLDomainOpt = p(DebugModuleKey).map { _ =>
+    val domain = ClockSinkNode(Seq(ClockSinkParameters()))
+    domain := tlbus.fixedClockNode
+    domain
+  }
   val debugOpt = p(DebugModuleKey).map { params =>
     val debug = LazyModule(new TLDebugModule(tlbus.beatBytes))
 
@@ -101,15 +107,16 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
   val psd = IO(new PSDIO)
 
   val resetctrl = outer.debugOpt.map { outerdebug =>
-    outerdebug.module.io.tl_reset := reset
-    outerdebug.module.io.tl_clock := clock
+    outerdebug.module.io.tl_reset := outer.debugTLDomainOpt.get.in.head._1.reset
+    outerdebug.module.io.tl_clock := outer.debugTLDomainOpt.get.in.head._1.clock
     val resetctrl = IO(new ResetCtrlIO(outerdebug.dmOuter.dmOuter.intnode.edges.out.size))
     outerdebug.module.io.hartIsInReset := resetctrl.hartIsInReset
     resetctrl.hartResetReq.foreach { rcio => outerdebug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm }}
     resetctrl
   }
 
-  val debug = outer.debugOpt.map { outerdebug =>
+  // noPrefix is workaround https://github.com/freechipsproject/chisel3/issues/1603
+  val debug = noPrefix(outer.debugOpt.map { outerdebug =>
     val debug = IO(new DebugIO)
 
     require(!(debug.clockeddmi.isDefined && debug.systemjtag.isDefined),
@@ -145,7 +152,7 @@ trait HasPeripheryDebugModuleImp extends LazyModuleImp {
     outerdebug.module.io.ctrl.debugUnavail.foreach { _ := false.B }
 
     debug
-  }
+  })
 
   val dtm = debug.flatMap(_.systemjtag.map(instantiateJtagDTM(_)))
 

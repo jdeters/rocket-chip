@@ -4,7 +4,6 @@ package freechips.rocketchip.devices.debug
 
 
 import chisel3._
-import chisel3.experimental.chiselName
 import chisel3.util._
 import freechips.rocketchip.config._
 import freechips.rocketchip.diplomacy._
@@ -163,12 +162,12 @@ case class DebugModuleHartSelFuncs (
 
 case object DebugModuleHartSelKey extends Field(DebugModuleHartSelFuncs())
 
-class DebugExtTriggerOut (nExtTriggers: Int) extends Bundle {
+class DebugExtTriggerOut (val nExtTriggers: Int) extends Bundle {
   val req = Output(UInt(nExtTriggers.W))
   val ack = Input(UInt(nExtTriggers.W))
 }
 
-class DebugExtTriggerIn (nExtTriggers: Int) extends Bundle {
+class DebugExtTriggerIn (val nExtTriggers: Int) extends Bundle {
   val req = Input(UInt(nExtTriggers.W))
   val ack = Output(UInt(nExtTriggers.W))
 }
@@ -283,7 +282,6 @@ object WNotifyVal {
   }
 }
 
-@chiselName
 class TLDebugModuleOuter(device: Device)(implicit p: Parameters) extends LazyModule {
 
   // For Shorter Register Names
@@ -691,7 +689,6 @@ class TLDebugModuleOuterAsync(device: Device)(implicit p: Parameters) extends La
   }
 }
 
-@chiselName
 class TLDebugModuleInner(device: Device, getNComponents: () => Int, beatBytes: Int)(implicit p: Parameters) extends LazyModule
 {
 
